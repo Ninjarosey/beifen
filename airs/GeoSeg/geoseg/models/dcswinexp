@@ -1,0 +1,36 @@
+
+class Decoder(nn.Module):
+    def __init__(self,
+                 encoder_channels=(96, 192, 384, 768),
+                 dropout=0.05,
+                 atrous_rates=(6, 12),
+                 num_classes=6):
+        super(Decoder, self).__init__()
+        self.dcfam = DCFAM(encoder_channels, atrous_rates)
+        self.dropout = nn.Dropout2d(p=dropout, inplace=True)
+        self.segmentation_head = nn.Sequential(
+            ConvBNReLU(encoder_channels[0], encoder_channels[0]),
+            Conv(encoder_channels[0], num_classes, kernel_size=1),
+            nn.UpsamplingBilinear2d(scale_factor=4))
+        self.up = nn.Sequential(
+            ConvBNReLU(encoder_channels[1], encoder_channels[0]),
+            nn.UpsamplingNearest2d(scale_factor=2)
+        )
+
+        self.init_weight()
+
+    def forward(self, x1, x2, x3, x4):
+        #out1, out2 = self.dcfam(x1, x2, x3, x4)
+        #x = out1 + self.up(out2)
+        
+        x = self.dropout(x)
+        x = self.segmentation_head(x)
+
+        return x
+
+    def init_weight(self):
+        for m in self.children():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, a=1)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)

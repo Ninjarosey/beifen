@@ -1,0 +1,1642 @@
+2023-10-07 10:05:23,892 - mmseg - INFO - Environment info:
+------------------------------------------------------------
+sys.platform: linux
+Python: 3.8.18 (default, Sep 11 2023, 13:40:15) [GCC 11.2.0]
+CUDA available: True
+GPU 0,1,2,3: Tesla T4
+CUDA_HOME: /usr/local/cuda
+NVCC: Build cuda_11.8.r11.8/compiler.31833905_0
+GCC: gcc (Ubuntu 7.5.0-3ubuntu1~18.04) 7.5.0
+PyTorch: 1.7.1
+PyTorch compiling details: PyTorch built with:
+  - GCC 7.3
+  - C++ Version: 201402
+  - Intel(R) Math Kernel Library Version 2020.0.0 Product Build 20191122 for Intel(R) 64 architecture applications
+  - Intel(R) MKL-DNN v1.6.0 (Git Hash 5ef631a030a6f73131c77892041042805a06064f)
+  - OpenMP 201511 (a.k.a. OpenMP 4.5)
+  - NNPACK is enabled
+  - CPU capability usage: AVX2
+  - CUDA Runtime 10.2
+  - NVCC architecture flags: -gencode;arch=compute_37,code=sm_37;-gencode;arch=compute_50,code=sm_50;-gencode;arch=compute_60,code=sm_60;-gencode;arch=compute_70,code=sm_70;-gencode;arch=compute_75,code=sm_75
+  - CuDNN 7.6.5
+  - Magma 2.5.2
+  - Build settings: BLAS=MKL, BUILD_TYPE=Release, CXX_FLAGS= -Wno-deprecated -fvisibility-inlines-hidden -DUSE_PTHREADPOOL -fopenmp -DNDEBUG -DUSE_FBGEMM -DUSE_QNNPACK -DUSE_PYTORCH_QNNPACK -DUSE_XNNPACK -DUSE_VULKAN_WRAPPER -O2 -fPIC -Wno-narrowing -Wall -Wextra -Werror=return-type -Wno-missing-field-initializers -Wno-type-limits -Wno-array-bounds -Wno-unknown-pragmas -Wno-sign-compare -Wno-unused-parameter -Wno-unused-variable -Wno-unused-function -Wno-unused-result -Wno-unused-local-typedefs -Wno-strict-overflow -Wno-strict-aliasing -Wno-error=deprecated-declarations -Wno-stringop-overflow -Wno-psabi -Wno-error=pedantic -Wno-error=redundant-decls -Wno-error=old-style-cast -fdiagnostics-color=always -faligned-new -Wno-unused-but-set-variable -Wno-maybe-uninitialized -fno-math-errno -fno-trapping-math -Werror=format -Wno-stringop-overflow, PERF_WITH_AVX=1, PERF_WITH_AVX2=1, PERF_WITH_AVX512=1, USE_CUDA=ON, USE_EXCEPTION_PTR=1, USE_GFLAGS=OFF, USE_GLOG=OFF, USE_MKL=ON, USE_MKLDNN=ON, USE_MPI=OFF, USE_NCCL=ON, USE_NNPACK=ON, USE_OPENMP=ON, 
+
+TorchVision: 0.8.2
+OpenCV: 4.8.0
+MMCV: 1.4.0
+MMCV Compiler: GCC 7.5
+MMCV CUDA Compiler: 11.8
+MMSegmentation: 0.16.0+
+------------------------------------------------------------
+
+2023-10-07 10:05:23,893 - mmseg - INFO - Distributed training: False
+2023-10-07 10:05:29,377 - mmseg - INFO - Config:
+log_config = dict(
+    interval=50, hooks=[dict(type='TextLoggerHook', by_epoch=False)])
+dist_params = dict(backend='nccl')
+log_level = 'INFO'
+load_from = None
+resume_from = None
+workflow = [('train', 1)]
+cudnn_benchmark = True
+norm_cfg = dict(type='BN', requires_grad=True)
+find_unused_parameters = True
+model = dict(
+    type='EncoderDecoder',
+    pretrained='pretrained/mit_b5.pth',
+    backbone=dict(type='mit_b5', style='pytorch'),
+    decode_head=dict(
+        type='DAFormerHead',
+        in_channels=[64, 128, 320, 512],
+        in_index=[0, 1, 2, 3],
+        channels=256,
+        dropout_ratio=0.1,
+        num_classes=6,
+        norm_cfg=dict(type='BN', requires_grad=True),
+        align_corners=False,
+        decoder_params=dict(
+            embed_dims=256,
+            embed_cfg=dict(type='mlp', act_cfg=None, norm_cfg=None),
+            embed_neck_cfg=dict(type='mlp', act_cfg=None, norm_cfg=None),
+            fusion_cfg=dict(
+                type='aspp',
+                sep=True,
+                dilations=(1, 6, 12, 18),
+                pool=False,
+                act_cfg=dict(type='ReLU'),
+                norm_cfg=dict(type='BN', requires_grad=True))),
+        loss_decode=dict(
+            type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0)),
+    train_cfg=dict(
+        work_dir=
+        './work_dirs/20231007_100515_potsdam2isprs_uda_pt7_dw_local7_label_warm_daformer_mitb5'
+    ),
+    test_cfg=dict(mode='whole'))
+img_norm_cfg = dict(
+    mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
+crop_size = (512, 512)
+train_pipeline = [
+    dict(type='LoadImageFromFile'),
+    dict(type='LoadAnnotations', reduce_zero_label=True),
+    dict(type='Resize', img_scale=(512, 512), ratio_range=(0.5, 2.0)),
+    dict(type='RandomCrop', crop_size=(512, 512), cat_max_ratio=0.75),
+    dict(type='RandomFlip', prob=0.5),
+    dict(
+        type='Normalize',
+        mean=[123.675, 116.28, 103.53],
+        std=[58.395, 57.12, 57.375],
+        to_rgb=True),
+    dict(type='Pad', size=(512, 512), pad_val=0, seg_pad_val=255),
+    dict(type='DefaultFormatBundle'),
+    dict(type='Collect', keys=['img', 'gt_semantic_seg'])
+]
+test_pipeline = [
+    dict(type='LoadImageFromFile'),
+    dict(
+        type='MultiScaleFlipAug',
+        img_scale=(512, 512),
+        flip=False,
+        transforms=[
+            dict(type='Resize', keep_ratio=True),
+            dict(type='RandomFlip'),
+            dict(
+                type='Normalize',
+                mean=[123.675, 116.28, 103.53],
+                std=[58.395, 57.12, 57.375],
+                to_rgb=True),
+            dict(type='ImageToTensor', keys=['img']),
+            dict(type='Collect', keys=['img'])
+        ])
+]
+data = dict(
+    samples_per_gpu=4,
+    workers_per_gpu=4,
+    train=dict(
+        type='UDADataset',
+        source=dict(
+            type='PotsdamDataset',
+            data_root='data/potsdam/',
+            img_dir='img_dir/train',
+            ann_dir='ann_dir/train',
+            pipeline=[
+                dict(type='LoadImageFromFile'),
+                dict(type='LoadAnnotations', reduce_zero_label=True),
+                dict(
+                    type='Resize',
+                    img_scale=(512, 512),
+                    ratio_range=(0.5, 2.0)),
+                dict(
+                    type='RandomCrop',
+                    crop_size=(512, 512),
+                    cat_max_ratio=0.75),
+                dict(type='RandomFlip', prob=0.5),
+                dict(
+                    type='Normalize',
+                    mean=[123.675, 116.28, 103.53],
+                    std=[58.395, 57.12, 57.375],
+                    to_rgb=True),
+                dict(type='Pad', size=(512, 512), pad_val=0, seg_pad_val=255),
+                dict(type='DefaultFormatBundle'),
+                dict(type='Collect', keys=['img', 'gt_semantic_seg'])
+            ]),
+        target=dict(
+            type='ISPRSDataset',
+            data_root='data/vaihingen',
+            img_dir='img_dir/train',
+            ann_dir='ann_dir/train',
+            pipeline=[
+                dict(type='LoadImageFromFile'),
+                dict(type='LoadAnnotations', reduce_zero_label=True),
+                dict(
+                    type='Resize',
+                    img_scale=(512, 512),
+                    ratio_range=(0.5, 2.0)),
+                dict(
+                    type='RandomCrop',
+                    crop_size=(512, 512),
+                    cat_max_ratio=0.75),
+                dict(type='RandomFlip', prob=0.5),
+                dict(
+                    type='Normalize',
+                    mean=[123.675, 116.28, 103.53],
+                    std=[58.395, 57.12, 57.375],
+                    to_rgb=True),
+                dict(type='Pad', size=(512, 512), pad_val=0, seg_pad_val=255),
+                dict(type='DefaultFormatBundle'),
+                dict(type='Collect', keys=['img', 'gt_semantic_seg'])
+            ])),
+    val=dict(
+        type='ISPRSDataset',
+        data_root='data/vaihingen',
+        img_dir='img_dir/val',
+        ann_dir='ann_dir/val',
+        pipeline=[
+            dict(type='LoadImageFromFile'),
+            dict(
+                type='MultiScaleFlipAug',
+                img_scale=(512, 512),
+                flip=False,
+                transforms=[
+                    dict(type='Resize', keep_ratio=True),
+                    dict(type='RandomFlip'),
+                    dict(
+                        type='Normalize',
+                        mean=[123.675, 116.28, 103.53],
+                        std=[58.395, 57.12, 57.375],
+                        to_rgb=True),
+                    dict(type='ImageToTensor', keys=['img']),
+                    dict(type='Collect', keys=['img'])
+                ])
+        ]),
+    test=dict(
+        type='ISPRSDataset',
+        data_root='data/vaihingen',
+        img_dir='img_dir/val',
+        ann_dir='ann_dir/val',
+        pipeline=[
+            dict(type='LoadImageFromFile'),
+            dict(
+                type='MultiScaleFlipAug',
+                img_scale=(512, 512),
+                flip=False,
+                transforms=[
+                    dict(type='Resize', keep_ratio=True),
+                    dict(type='RandomFlip'),
+                    dict(
+                        type='Normalize',
+                        mean=[123.675, 116.28, 103.53],
+                        std=[58.395, 57.12, 57.375],
+                        to_rgb=True),
+                    dict(type='ImageToTensor', keys=['img']),
+                    dict(type='Collect', keys=['img'])
+                ])
+        ]))
+uda = dict(
+    type='DACS',
+    alpha=0.9,
+    pseudo_threshold=0.7,
+    dynamic_class_weight=True,
+    mix='class',
+    blur=True,
+    color_jitter_strength=0.2,
+    color_jitter_probability=0.2,
+    pseudo_kernal_size=7,
+    local_ps_weight_type='label',
+    debug_img_interval=1000,
+    print_grad_magnitude=False)
+use_ddp_wrapper = True
+optimizer = dict(
+    type='AdamW',
+    lr=0.0001,
+    betas=(0.9, 0.999),
+    weight_decay=0.01,
+    paramwise_cfg=dict(
+        custom_keys=dict(
+            head=dict(lr_mult=10.0),
+            pos_block=dict(decay_mult=0.0),
+            norm=dict(decay_mult=0.0))))
+optimizer_config = None
+lr_config = dict(
+    policy='poly',
+    warmup='linear',
+    warmup_iters=1500,
+    warmup_ratio=1e-06,
+    power=1.0,
+    min_lr=0.0,
+    by_epoch=False)
+seed = 0
+n_gpus = 1
+runner = dict(type='IterBasedRunner', max_iters=4000)
+checkpoint_config = dict(by_epoch=False, interval=1000, max_keep_ckpts=4)
+evaluation = dict(interval=400, metric='mIoU')
+name = 'potsdam2isprs_uda_pt7_local7_label_warm_daformer_mitb5'
+exp = 'basic'
+name_dataset = 'potsdam2vaihingen'
+name_architecture = 'daformer_sepaspp_mitb5'
+name_encoder = 'mitb5'
+name_decoder = 'daformer_sepaspp'
+name_uda = 'dacs_a0.9_pt0.9_mix0.1'
+name_opt = 'adamw_1e-04_poly10warm_1x2_4k'
+work_dir = './work_dirs/20231007_100515_potsdam2isprs_uda_pt7_dw_local7_label_warm_daformer_mitb5'
+gpu_ids = range(0, 1)
+
+2023-10-07 10:05:29,377 - mmseg - INFO - Set random seed to 0, deterministic: False
+2023-10-07 10:05:34,016 - mmseg - INFO - Load mit checkpoint.
+2023-10-07 10:05:34,016 - mmseg - INFO - load checkpoint from local path: pretrained/mit_b5.pth
+2023-10-07 10:05:34,852 - mmseg - INFO - initialize DAFormerHead with init_cfg {'type': 'Normal', 'std': 0.01, 'override': {'name': 'conv_seg'}}
+2023-10-07 10:05:34,990 - mmseg - INFO - Load mit checkpoint.
+2023-10-07 10:05:34,991 - mmseg - INFO - load checkpoint from local path: pretrained/mit_b5.pth
+2023-10-07 10:05:35,985 - mmseg - INFO - initialize DAFormerHead with init_cfg {'type': 'Normal', 'std': 0.01, 'override': {'name': 'conv_seg'}}
+Name of parameter - Initialization information
+
+model.backbone.patch_embed1.proj.weight - torch.Size([64, 3, 7, 7]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.patch_embed1.proj.bias - torch.Size([64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.patch_embed1.norm.weight - torch.Size([64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.patch_embed1.norm.bias - torch.Size([64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.patch_embed2.proj.weight - torch.Size([128, 64, 3, 3]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.patch_embed2.proj.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.patch_embed2.norm.weight - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.patch_embed2.norm.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.patch_embed3.proj.weight - torch.Size([320, 128, 3, 3]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.patch_embed3.proj.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.patch_embed3.norm.weight - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.patch_embed3.norm.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.patch_embed4.proj.weight - torch.Size([512, 320, 3, 3]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.patch_embed4.proj.bias - torch.Size([512]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.patch_embed4.norm.weight - torch.Size([512]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.patch_embed4.norm.bias - torch.Size([512]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.0.norm1.weight - torch.Size([64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.0.norm1.bias - torch.Size([64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.0.attn.q.weight - torch.Size([64, 64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.0.attn.q.bias - torch.Size([64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.0.attn.kv.weight - torch.Size([128, 64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.0.attn.kv.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.0.attn.proj.weight - torch.Size([64, 64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.0.attn.proj.bias - torch.Size([64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.0.attn.sr.weight - torch.Size([64, 64, 8, 8]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.0.attn.sr.bias - torch.Size([64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.0.attn.norm.weight - torch.Size([64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.0.attn.norm.bias - torch.Size([64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.0.norm2.weight - torch.Size([64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.0.norm2.bias - torch.Size([64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.0.mlp.fc1.weight - torch.Size([256, 64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.0.mlp.fc1.bias - torch.Size([256]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.0.mlp.dwconv.dwconv.weight - torch.Size([256, 1, 3, 3]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.0.mlp.dwconv.dwconv.bias - torch.Size([256]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.0.mlp.fc2.weight - torch.Size([64, 256]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.0.mlp.fc2.bias - torch.Size([64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.1.norm1.weight - torch.Size([64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.1.norm1.bias - torch.Size([64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.1.attn.q.weight - torch.Size([64, 64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.1.attn.q.bias - torch.Size([64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.1.attn.kv.weight - torch.Size([128, 64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.1.attn.kv.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.1.attn.proj.weight - torch.Size([64, 64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.1.attn.proj.bias - torch.Size([64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.1.attn.sr.weight - torch.Size([64, 64, 8, 8]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.1.attn.sr.bias - torch.Size([64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.1.attn.norm.weight - torch.Size([64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.1.attn.norm.bias - torch.Size([64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.1.norm2.weight - torch.Size([64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.1.norm2.bias - torch.Size([64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.1.mlp.fc1.weight - torch.Size([256, 64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.1.mlp.fc1.bias - torch.Size([256]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.1.mlp.dwconv.dwconv.weight - torch.Size([256, 1, 3, 3]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.1.mlp.dwconv.dwconv.bias - torch.Size([256]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.1.mlp.fc2.weight - torch.Size([64, 256]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.1.mlp.fc2.bias - torch.Size([64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.2.norm1.weight - torch.Size([64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.2.norm1.bias - torch.Size([64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.2.attn.q.weight - torch.Size([64, 64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.2.attn.q.bias - torch.Size([64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.2.attn.kv.weight - torch.Size([128, 64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.2.attn.kv.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.2.attn.proj.weight - torch.Size([64, 64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.2.attn.proj.bias - torch.Size([64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.2.attn.sr.weight - torch.Size([64, 64, 8, 8]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.2.attn.sr.bias - torch.Size([64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.2.attn.norm.weight - torch.Size([64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.2.attn.norm.bias - torch.Size([64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.2.norm2.weight - torch.Size([64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.2.norm2.bias - torch.Size([64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.2.mlp.fc1.weight - torch.Size([256, 64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.2.mlp.fc1.bias - torch.Size([256]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.2.mlp.dwconv.dwconv.weight - torch.Size([256, 1, 3, 3]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.2.mlp.dwconv.dwconv.bias - torch.Size([256]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.2.mlp.fc2.weight - torch.Size([64, 256]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block1.2.mlp.fc2.bias - torch.Size([64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.norm1.weight - torch.Size([64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.norm1.bias - torch.Size([64]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.0.norm1.weight - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.0.norm1.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.0.attn.q.weight - torch.Size([128, 128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.0.attn.q.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.0.attn.kv.weight - torch.Size([256, 128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.0.attn.kv.bias - torch.Size([256]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.0.attn.proj.weight - torch.Size([128, 128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.0.attn.proj.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.0.attn.sr.weight - torch.Size([128, 128, 4, 4]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.0.attn.sr.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.0.attn.norm.weight - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.0.attn.norm.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.0.norm2.weight - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.0.norm2.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.0.mlp.fc1.weight - torch.Size([512, 128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.0.mlp.fc1.bias - torch.Size([512]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.0.mlp.dwconv.dwconv.weight - torch.Size([512, 1, 3, 3]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.0.mlp.dwconv.dwconv.bias - torch.Size([512]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.0.mlp.fc2.weight - torch.Size([128, 512]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.0.mlp.fc2.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.1.norm1.weight - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.1.norm1.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.1.attn.q.weight - torch.Size([128, 128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.1.attn.q.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.1.attn.kv.weight - torch.Size([256, 128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.1.attn.kv.bias - torch.Size([256]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.1.attn.proj.weight - torch.Size([128, 128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.1.attn.proj.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.1.attn.sr.weight - torch.Size([128, 128, 4, 4]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.1.attn.sr.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.1.attn.norm.weight - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.1.attn.norm.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.1.norm2.weight - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.1.norm2.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.1.mlp.fc1.weight - torch.Size([512, 128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.1.mlp.fc1.bias - torch.Size([512]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.1.mlp.dwconv.dwconv.weight - torch.Size([512, 1, 3, 3]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.1.mlp.dwconv.dwconv.bias - torch.Size([512]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.1.mlp.fc2.weight - torch.Size([128, 512]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.1.mlp.fc2.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.2.norm1.weight - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.2.norm1.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.2.attn.q.weight - torch.Size([128, 128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.2.attn.q.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.2.attn.kv.weight - torch.Size([256, 128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.2.attn.kv.bias - torch.Size([256]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.2.attn.proj.weight - torch.Size([128, 128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.2.attn.proj.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.2.attn.sr.weight - torch.Size([128, 128, 4, 4]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.2.attn.sr.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.2.attn.norm.weight - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.2.attn.norm.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.2.norm2.weight - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.2.norm2.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.2.mlp.fc1.weight - torch.Size([512, 128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.2.mlp.fc1.bias - torch.Size([512]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.2.mlp.dwconv.dwconv.weight - torch.Size([512, 1, 3, 3]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.2.mlp.dwconv.dwconv.bias - torch.Size([512]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.2.mlp.fc2.weight - torch.Size([128, 512]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.2.mlp.fc2.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.3.norm1.weight - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.3.norm1.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.3.attn.q.weight - torch.Size([128, 128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.3.attn.q.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.3.attn.kv.weight - torch.Size([256, 128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.3.attn.kv.bias - torch.Size([256]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.3.attn.proj.weight - torch.Size([128, 128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.3.attn.proj.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.3.attn.sr.weight - torch.Size([128, 128, 4, 4]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.3.attn.sr.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.3.attn.norm.weight - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.3.attn.norm.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.3.norm2.weight - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.3.norm2.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.3.mlp.fc1.weight - torch.Size([512, 128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.3.mlp.fc1.bias - torch.Size([512]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.3.mlp.dwconv.dwconv.weight - torch.Size([512, 1, 3, 3]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.3.mlp.dwconv.dwconv.bias - torch.Size([512]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.3.mlp.fc2.weight - torch.Size([128, 512]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.3.mlp.fc2.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.4.norm1.weight - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.4.norm1.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.4.attn.q.weight - torch.Size([128, 128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.4.attn.q.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.4.attn.kv.weight - torch.Size([256, 128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.4.attn.kv.bias - torch.Size([256]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.4.attn.proj.weight - torch.Size([128, 128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.4.attn.proj.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.4.attn.sr.weight - torch.Size([128, 128, 4, 4]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.4.attn.sr.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.4.attn.norm.weight - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.4.attn.norm.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.4.norm2.weight - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.4.norm2.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.4.mlp.fc1.weight - torch.Size([512, 128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.4.mlp.fc1.bias - torch.Size([512]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.4.mlp.dwconv.dwconv.weight - torch.Size([512, 1, 3, 3]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.4.mlp.dwconv.dwconv.bias - torch.Size([512]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.4.mlp.fc2.weight - torch.Size([128, 512]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.4.mlp.fc2.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.5.norm1.weight - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.5.norm1.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.5.attn.q.weight - torch.Size([128, 128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.5.attn.q.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.5.attn.kv.weight - torch.Size([256, 128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.5.attn.kv.bias - torch.Size([256]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.5.attn.proj.weight - torch.Size([128, 128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.5.attn.proj.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.5.attn.sr.weight - torch.Size([128, 128, 4, 4]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.5.attn.sr.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.5.attn.norm.weight - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.5.attn.norm.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.5.norm2.weight - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.5.norm2.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.5.mlp.fc1.weight - torch.Size([512, 128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.5.mlp.fc1.bias - torch.Size([512]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.5.mlp.dwconv.dwconv.weight - torch.Size([512, 1, 3, 3]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.5.mlp.dwconv.dwconv.bias - torch.Size([512]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.5.mlp.fc2.weight - torch.Size([128, 512]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block2.5.mlp.fc2.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.norm2.weight - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.norm2.bias - torch.Size([128]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.0.norm1.weight - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.0.norm1.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.0.attn.q.weight - torch.Size([320, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.0.attn.q.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.0.attn.kv.weight - torch.Size([640, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.0.attn.kv.bias - torch.Size([640]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.0.attn.proj.weight - torch.Size([320, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.0.attn.proj.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.0.attn.sr.weight - torch.Size([320, 320, 2, 2]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.0.attn.sr.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.0.attn.norm.weight - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.0.attn.norm.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.0.norm2.weight - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.0.norm2.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.0.mlp.fc1.weight - torch.Size([1280, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.0.mlp.fc1.bias - torch.Size([1280]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.0.mlp.dwconv.dwconv.weight - torch.Size([1280, 1, 3, 3]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.0.mlp.dwconv.dwconv.bias - torch.Size([1280]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.0.mlp.fc2.weight - torch.Size([320, 1280]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.0.mlp.fc2.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.1.norm1.weight - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.1.norm1.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.1.attn.q.weight - torch.Size([320, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.1.attn.q.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.1.attn.kv.weight - torch.Size([640, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.1.attn.kv.bias - torch.Size([640]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.1.attn.proj.weight - torch.Size([320, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.1.attn.proj.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.1.attn.sr.weight - torch.Size([320, 320, 2, 2]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.1.attn.sr.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.1.attn.norm.weight - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.1.attn.norm.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.1.norm2.weight - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.1.norm2.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.1.mlp.fc1.weight - torch.Size([1280, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.1.mlp.fc1.bias - torch.Size([1280]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.1.mlp.dwconv.dwconv.weight - torch.Size([1280, 1, 3, 3]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.1.mlp.dwconv.dwconv.bias - torch.Size([1280]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.1.mlp.fc2.weight - torch.Size([320, 1280]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.1.mlp.fc2.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.2.norm1.weight - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.2.norm1.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.2.attn.q.weight - torch.Size([320, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.2.attn.q.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.2.attn.kv.weight - torch.Size([640, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.2.attn.kv.bias - torch.Size([640]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.2.attn.proj.weight - torch.Size([320, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.2.attn.proj.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.2.attn.sr.weight - torch.Size([320, 320, 2, 2]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.2.attn.sr.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.2.attn.norm.weight - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.2.attn.norm.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.2.norm2.weight - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.2.norm2.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.2.mlp.fc1.weight - torch.Size([1280, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.2.mlp.fc1.bias - torch.Size([1280]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.2.mlp.dwconv.dwconv.weight - torch.Size([1280, 1, 3, 3]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.2.mlp.dwconv.dwconv.bias - torch.Size([1280]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.2.mlp.fc2.weight - torch.Size([320, 1280]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.2.mlp.fc2.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.3.norm1.weight - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.3.norm1.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.3.attn.q.weight - torch.Size([320, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.3.attn.q.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.3.attn.kv.weight - torch.Size([640, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.3.attn.kv.bias - torch.Size([640]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.3.attn.proj.weight - torch.Size([320, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.3.attn.proj.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.3.attn.sr.weight - torch.Size([320, 320, 2, 2]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.3.attn.sr.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.3.attn.norm.weight - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.3.attn.norm.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.3.norm2.weight - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.3.norm2.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.3.mlp.fc1.weight - torch.Size([1280, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.3.mlp.fc1.bias - torch.Size([1280]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.3.mlp.dwconv.dwconv.weight - torch.Size([1280, 1, 3, 3]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.3.mlp.dwconv.dwconv.bias - torch.Size([1280]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.3.mlp.fc2.weight - torch.Size([320, 1280]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.3.mlp.fc2.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.4.norm1.weight - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.4.norm1.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.4.attn.q.weight - torch.Size([320, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.4.attn.q.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.4.attn.kv.weight - torch.Size([640, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.4.attn.kv.bias - torch.Size([640]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.4.attn.proj.weight - torch.Size([320, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.4.attn.proj.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.4.attn.sr.weight - torch.Size([320, 320, 2, 2]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.4.attn.sr.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.4.attn.norm.weight - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.4.attn.norm.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.4.norm2.weight - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.4.norm2.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.4.mlp.fc1.weight - torch.Size([1280, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.4.mlp.fc1.bias - torch.Size([1280]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.4.mlp.dwconv.dwconv.weight - torch.Size([1280, 1, 3, 3]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.4.mlp.dwconv.dwconv.bias - torch.Size([1280]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.4.mlp.fc2.weight - torch.Size([320, 1280]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.4.mlp.fc2.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.5.norm1.weight - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.5.norm1.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.5.attn.q.weight - torch.Size([320, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.5.attn.q.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.5.attn.kv.weight - torch.Size([640, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.5.attn.kv.bias - torch.Size([640]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.5.attn.proj.weight - torch.Size([320, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.5.attn.proj.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.5.attn.sr.weight - torch.Size([320, 320, 2, 2]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.5.attn.sr.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.5.attn.norm.weight - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.5.attn.norm.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.5.norm2.weight - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.5.norm2.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.5.mlp.fc1.weight - torch.Size([1280, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.5.mlp.fc1.bias - torch.Size([1280]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.5.mlp.dwconv.dwconv.weight - torch.Size([1280, 1, 3, 3]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.5.mlp.dwconv.dwconv.bias - torch.Size([1280]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.5.mlp.fc2.weight - torch.Size([320, 1280]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.5.mlp.fc2.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.6.norm1.weight - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.6.norm1.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.6.attn.q.weight - torch.Size([320, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.6.attn.q.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.6.attn.kv.weight - torch.Size([640, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.6.attn.kv.bias - torch.Size([640]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.6.attn.proj.weight - torch.Size([320, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.6.attn.proj.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.6.attn.sr.weight - torch.Size([320, 320, 2, 2]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.6.attn.sr.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.6.attn.norm.weight - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.6.attn.norm.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.6.norm2.weight - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.6.norm2.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.6.mlp.fc1.weight - torch.Size([1280, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.6.mlp.fc1.bias - torch.Size([1280]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.6.mlp.dwconv.dwconv.weight - torch.Size([1280, 1, 3, 3]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.6.mlp.dwconv.dwconv.bias - torch.Size([1280]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.6.mlp.fc2.weight - torch.Size([320, 1280]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.6.mlp.fc2.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.7.norm1.weight - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.7.norm1.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.7.attn.q.weight - torch.Size([320, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.7.attn.q.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.7.attn.kv.weight - torch.Size([640, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.7.attn.kv.bias - torch.Size([640]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.7.attn.proj.weight - torch.Size([320, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.7.attn.proj.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.7.attn.sr.weight - torch.Size([320, 320, 2, 2]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.7.attn.sr.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.7.attn.norm.weight - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.7.attn.norm.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.7.norm2.weight - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.7.norm2.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.7.mlp.fc1.weight - torch.Size([1280, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.7.mlp.fc1.bias - torch.Size([1280]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.7.mlp.dwconv.dwconv.weight - torch.Size([1280, 1, 3, 3]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.7.mlp.dwconv.dwconv.bias - torch.Size([1280]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.7.mlp.fc2.weight - torch.Size([320, 1280]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.7.mlp.fc2.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.8.norm1.weight - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.8.norm1.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.8.attn.q.weight - torch.Size([320, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.8.attn.q.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.8.attn.kv.weight - torch.Size([640, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.8.attn.kv.bias - torch.Size([640]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.8.attn.proj.weight - torch.Size([320, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.8.attn.proj.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.8.attn.sr.weight - torch.Size([320, 320, 2, 2]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.8.attn.sr.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.8.attn.norm.weight - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.8.attn.norm.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.8.norm2.weight - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.8.norm2.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.8.mlp.fc1.weight - torch.Size([1280, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.8.mlp.fc1.bias - torch.Size([1280]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.8.mlp.dwconv.dwconv.weight - torch.Size([1280, 1, 3, 3]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.8.mlp.dwconv.dwconv.bias - torch.Size([1280]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.8.mlp.fc2.weight - torch.Size([320, 1280]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.8.mlp.fc2.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.9.norm1.weight - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.9.norm1.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.9.attn.q.weight - torch.Size([320, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.9.attn.q.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.9.attn.kv.weight - torch.Size([640, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.9.attn.kv.bias - torch.Size([640]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.9.attn.proj.weight - torch.Size([320, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.9.attn.proj.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.9.attn.sr.weight - torch.Size([320, 320, 2, 2]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.9.attn.sr.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.9.attn.norm.weight - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.9.attn.norm.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.9.norm2.weight - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.9.norm2.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.9.mlp.fc1.weight - torch.Size([1280, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.9.mlp.fc1.bias - torch.Size([1280]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.9.mlp.dwconv.dwconv.weight - torch.Size([1280, 1, 3, 3]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.9.mlp.dwconv.dwconv.bias - torch.Size([1280]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.9.mlp.fc2.weight - torch.Size([320, 1280]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.9.mlp.fc2.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.10.norm1.weight - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.10.norm1.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.10.attn.q.weight - torch.Size([320, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.10.attn.q.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.10.attn.kv.weight - torch.Size([640, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.10.attn.kv.bias - torch.Size([640]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.10.attn.proj.weight - torch.Size([320, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.10.attn.proj.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.10.attn.sr.weight - torch.Size([320, 320, 2, 2]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.10.attn.sr.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.10.attn.norm.weight - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.10.attn.norm.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.10.norm2.weight - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.10.norm2.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.10.mlp.fc1.weight - torch.Size([1280, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.10.mlp.fc1.bias - torch.Size([1280]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.10.mlp.dwconv.dwconv.weight - torch.Size([1280, 1, 3, 3]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.10.mlp.dwconv.dwconv.bias - torch.Size([1280]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.10.mlp.fc2.weight - torch.Size([320, 1280]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.10.mlp.fc2.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.11.norm1.weight - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.11.norm1.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.11.attn.q.weight - torch.Size([320, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.11.attn.q.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.11.attn.kv.weight - torch.Size([640, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.11.attn.kv.bias - torch.Size([640]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.11.attn.proj.weight - torch.Size([320, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.11.attn.proj.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.11.attn.sr.weight - torch.Size([320, 320, 2, 2]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.11.attn.sr.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.11.attn.norm.weight - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.11.attn.norm.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.11.norm2.weight - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.11.norm2.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.11.mlp.fc1.weight - torch.Size([1280, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.11.mlp.fc1.bias - torch.Size([1280]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.11.mlp.dwconv.dwconv.weight - torch.Size([1280, 1, 3, 3]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.11.mlp.dwconv.dwconv.bias - torch.Size([1280]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.11.mlp.fc2.weight - torch.Size([320, 1280]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.11.mlp.fc2.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.12.norm1.weight - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.12.norm1.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.12.attn.q.weight - torch.Size([320, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.12.attn.q.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.12.attn.kv.weight - torch.Size([640, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.12.attn.kv.bias - torch.Size([640]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.12.attn.proj.weight - torch.Size([320, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.12.attn.proj.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.12.attn.sr.weight - torch.Size([320, 320, 2, 2]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.12.attn.sr.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.12.attn.norm.weight - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.12.attn.norm.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.12.norm2.weight - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.12.norm2.bias - torch.Size([320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.12.mlp.fc1.weight - torch.Size([1280, 320]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.12.mlp.fc1.bias - torch.Size([1280]): 
+Initialized by user-defined `init_weights` in mit_b5  
+
+model.backbone.block3.12.mlp.dwconv.dwconv.weight - torch.Size([1280, 1, 3, 3]): 
+Initialized by user-defined `init_weights` in mit
