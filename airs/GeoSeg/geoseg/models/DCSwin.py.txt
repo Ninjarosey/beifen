@@ -1,8 +1,10 @@
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.checkpoint as checkpoint
 import numpy as np
+import math
 from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 
 
@@ -797,6 +799,7 @@ class SharedChannelAttention(nn.Module):
         tailor_sum = 1 / (width * height + torch.einsum("bnc, bn->bc", K, torch.sum(Q, dim=-2) + self.eps))
         value_sum = torch.einsum("bcn->bn", V).unsqueeze(-1).permute(0, 2, 1)
         value_sum = value_sum.expand(-1, chnnels, width * height)
+        
         matrix = torch.einsum('bcn, bnm->bcm', V, K)
         matrix_sum = value_sum + torch.einsum("bcm, bmn->bcn", matrix, Q)
 
@@ -824,10 +827,85 @@ class DownConnection(nn.Module):
 
         return x
 
+# GATConv(in_size, out_size, heads_num, concat_flag, dropout=0.0)
+#  edge_index= [[0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # in_edges_idx
 
+#                             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8]]  # out_edges_idx
+# from torch_geometric.nn import GATConv
+ 
+
+    
+
+
+class CrossAttention(nn.modules):
+    def __init__(self, hidden_size, attention_head_size=None, num_attention_heads=1, key_hidden_size=None, query_hidden_size=None):
+        super(CrossAttention, self).__init__(hidden_size, attention_head_size, num_attention_heads)
+        if query_hidden_size is not None:
+            self.query = nn.Linear(query_hidden_size, self.all_head_size * self.num_qkv)
+        if key_hidden_size is not None:
+            self.key = nn.Linear(key_hidden_size, self.all_head_size * self.num_qkv)
+            self.value = nn.Linear(key_hidden_size, self.all_head_size * self.num_qkv)
+ 
+    def forward(self, hidden_states_query, hidden_states_key=None, attention_mask=None, return_scores=False):
+        mixed_query_layer = self.query(hidden_states_query)
+        mixed_key_layer = self.key(hidden_states_key)
+        mixed_value_layer = self.value(hidden_states_key)
+ 
+        query_layer = self.transpose_for_scores(mixed_query_layer)
+        key_layer = self.transpose_for_scores(mixed_key_layer)
+        value_layer = self.transpose_for_scores(mixed_value_layer)
+ 
+        attention_scores = torch.matmul(
+            query_layer / math.sqrt(self.attention_head_size), key_layer.transpose(-1, -2))
+        if attention_mask is not None:
+            assert hidden_states_query.shape[1] == attention_mask.shape[1] \
+                   and hidden_states_key.shape[1] == attention_mask.shape[2]
+            attention_scores = attention_scores +    self.get_extended_attention_mask(attention_mask)
+        attention_probs = nn.Softmax(dim=-1)(attention_scores)
+        context_layer = torch.matmul(attention_probs, value_layer)
+        context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
+        new_context_layer_shape = context_layer.size()[
+                                  :-2] + (self.all_head_size,)
+        context_layer = context_layer.view(*new_context_layer_shape)
+        if return_scores:
+            return context_layer, torch.squeeze(attention_probs, dim=1)
+        return context_layer
+    
+
+
+    
 class DCFAM(nn.Module):
     def __init__(self, encoder_channels=(96, 192, 384, 768), atrous_rates=(6, 12)):
         super(DCFAM, self).__init__()
+        rate_1, rate_2 = tuple(atrous_rates)
+        self.conv4 = Conv(encoder_channels[3], encoder_channels[3], kernel_size=1)
+        self.conv1 = Conv(encoder_channels[0], encoder_channels[0], kernel_size=1)
+        self.lf4 = nn.Sequential(SeparableConvBNReLU(encoder_channels[-1], encoder_channels[-2], dilation=rate_1),
+                                 nn.UpsamplingNearest2d(scale_factor=2),
+                                 SeparableConvBNReLU(encoder_channels[-2], encoder_channels[-3], dilation=rate_2),
+                                 nn.UpsamplingNearest2d(scale_factor=2))
+        self.lf3 = nn.Sequential(SeparableConvBNReLU(encoder_channels[-2], encoder_channels[-3], dilation=rate_1),
+                                 nn.UpsamplingNearest2d(scale_factor=2),
+                                 SeparableConvBNReLU(encoder_channels[-3], encoder_channels[-4], dilation=rate_2),
+                                 nn.UpsamplingNearest2d(scale_factor=2))
+
+        self.ca = SharedChannelAttention()
+        self.pa = SharedSpatialAttention(in_places=encoder_channels[2])
+        self.down12 = DownConnection(encoder_channels[0], encoder_channels[1])
+        
+        self.down231 = DownConnection(encoder_channels[1], encoder_channels[2])
+        self.down232 = DownConnection(encoder_channels[1], encoder_channels[2])
+        self.down34 = DownConnection(encoder_channels[2], encoder_channels[3])
+
+    def forward(self, x1, x2, x3, x4):
+        out4 = self.down34(self.pa(self.down232(x2)))
+        out3 = self.down231(self.ca(self.down12(x1))) 
+     
+        return out3, out4
+        
+class DCFAM2(nn.Module):
+    def __init__(self, encoder_channels=(96, 192, 384, 768), atrous_rates=(6, 12)):
+        super(DCFAM2, self).__init__()
         rate_1, rate_2 = tuple(atrous_rates)
         self.conv4 = Conv(encoder_channels[3], encoder_channels[3], kernel_size=1)
         self.conv1 = Conv(encoder_channels[0], encoder_channels[0], kernel_size=1)
@@ -848,13 +926,27 @@ class DCFAM(nn.Module):
         self.down34 = DownConnection(encoder_channels[2], encoder_channels[3])
 
     def forward(self, x1, x2, x3, x4):
-        out4 = self.conv4(x4) + self.down34(self.pa(self.down232(x2)))
-        out3 = self.pa(x3) + self.down231(self.ca(self.down12(x1)))
-        out2 = self.ca(x2) + self.lf4(out4)
-        del out4
-        out1 = self.lf3(out3) + self.conv1(x1)
-        del out3
+        out4 = self.conv4(x4)
+        out3 = self.pa(x3) 
+       
+        return out3, out4
 
+class DCFAM3down(nn.Module):
+    def __init__(self, encoder_channels=(96, 192, 384, 768), atrous_rates=(6, 12),d1=0,d2=0):
+        super(DCFAM3down, self).__init__()
+       
+        self.conv1 = Conv(encoder_channels[0], encoder_channels[0], kernel_size=1)
+        self.ca = SharedChannelAttention()
+        self.d1=d1
+        self.d2=d2
+
+    def forward(self, x1, x2, x3, x4):
+        # out4 = self.conv4(x4) + self.down34(self.pa(self.down232(x2)))
+        # out3 = self.pa(x3) + self.down231(self.ca(self.down12(x1)))
+        out2 = self.ca(x2) + self.d1
+        # del out4
+        out1 = self.d2 + self.conv1(x1)
+        # del out3
         return out1, out2
 
 
@@ -866,6 +958,11 @@ class Decoder(nn.Module):
                  num_classes=6):
         super(Decoder, self).__init__()
         self.dcfam = DCFAM(encoder_channels, atrous_rates)
+        self.dcfam2 = DCFAM2(encoder_channels, atrous_rates)
+        
+        self.conv1 = Conv(encoder_channels[0], encoder_channels[0], kernel_size=1)
+        self.ca = SharedChannelAttention()
+        
         self.dropout = nn.Dropout2d(p=dropout, inplace=True)
         self.segmentation_head = nn.Sequential(
             ConvBNReLU(encoder_channels[0], encoder_channels[0]),
@@ -878,20 +975,20 @@ class Decoder(nn.Module):
         self.init_weight()
 
     def forward(self, x1, x2, x3, x4):
-        out1, out2 = self.dcfam(x1, x2, x3, x4)
-        x = out1 + self.up(out2)
+        n, m = self.dcfam(x1, x2, x3, x4)
+        p, q = self.dcfam2(x1, x2, x3, x4)
+        
+        d2 = CrossAttention(n,p)
+        d1 = CrossAttention(m,q)
+        
+        out2=d1+self.ca(x2)
+        out1=d2+self.conv1(x1)
+
+        x = out1 + self.up(out2) 
         x = self.dropout(x)
         x = self.segmentation_head(x)
 
         return x
-
-    def init_weight(self):
-        for m in self.children():
-            if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, a=1)
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
-
 
 class DCSwin(nn.Module):
     def __init__(self,
