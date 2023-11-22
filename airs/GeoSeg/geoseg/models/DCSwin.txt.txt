@@ -786,21 +786,32 @@ class SharedChannelAttention(nn.Module):
         self.eps = eps
 
     def forward(self, x):
+        print(x.shape)#torch.Size([4, 192, 128, 128])
+        x2 = self.cnnspatial(x)
         batch_size, chnnels, width, height = x.shape
         Q = x.view(batch_size, chnnels, -1)
         K = x.view(batch_size, chnnels, -1)
         V = x.view(batch_size, chnnels, -1)
-
+        print(Q.shape)#torch.Size([4, 192, 16384])
+        # print(Q)
         Q = self.l2_norm(Q)
+        # print(Q)
         K = self.l2_norm(K).permute(-3, -1, -2)
 
-        tailor_sum = 1 / (width * height + torch.einsum("bnc, bn->bc", K, torch.sum(Q, dim=-2) + self.eps))
+        print(Q[:,0,:]) 
+        tailor_sum1 = 1 / (width * height + torch.einsum("bnc, bn->bc", K, Q[:,0,:] + self.eps))
+        tailor_sum2 = 1 / (width * height + torch.einsum("bnc, bn->bc", K, Q[:,1,:] + self.eps))
+        tailor_sum3 = 1 / (width * height + torch.einsum("bnc, bn->bc", K, Q[:,2,:] + self.eps))
         value_sum = torch.einsum("bcn->bn", V).unsqueeze(-1).permute(0, 2, 1)
         value_sum = value_sum.expand(-1, chnnels, width * height)
         matrix = torch.einsum('bcn, bnm->bcm', V, K)
+
         matrix_sum = value_sum + torch.einsum("bcm, bmn->bcn", matrix, Q)
 
-        weight_value = torch.einsum("bcn, bc->bcn", matrix_sum, tailor_sum)
+        weight_value1 = torch.einsum("bcn, bc->bcn", matrix_sum, tailor_sum1)
+        weight_value2 = torch.einsum("bcn, bc->bcn", matrix_sum, tailor_sum2)
+        weight_value3 = torch.einsum("bcn, bc->bcn", matrix_sum, tailor_sum3)
+        weight_value=weight_value1+weight_value2+weight_value3
         weight_value = weight_value.view(batch_size, chnnels, height, width)
 
         return (x + self.gamma * weight_value).contiguous()
